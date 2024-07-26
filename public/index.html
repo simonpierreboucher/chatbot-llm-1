@@ -12,7 +12,6 @@
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
-
     <style>
         .chat-box {
             height: calc(100vh - 238px); /* subtract the space occupied by the navbar and footer */
@@ -22,14 +21,12 @@
             border: 1px solid #ddd;
             border-radius: 5px;
         }
-
         @media only screen and (max-width: 480px) {
             .chat-box {
                 height: calc(100vh - 300px); /* adjust the height value as per your requirement */
                 overflow-y: auto;
             }
         }
-
         .message {
             margin-bottom: 10px;
             padding: 10px;
@@ -42,7 +39,6 @@
             position: relative;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
         .copy-icon {
             position: absolute;
             top: 10px;
@@ -50,11 +46,9 @@
             cursor: pointer;
             color: #888;
         }
-
         .copy-icon:hover {
             color: #555;
         }
-
         .left-side {
             background-color: #d4edda;
             float: left;
@@ -62,7 +56,6 @@
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-
         .right-side {
             background-color: #cce5ff;
             float: right;
@@ -70,7 +63,6 @@
             color: #004085;
             border: 1px solid #b8daff;
         }   
-
         .popup {
             position: fixed;
             bottom: 20vh;
@@ -83,17 +75,14 @@
             font-size: 16px;
             display: none;
         }
-
         .btn-custom {
             background-color: #007bff;
             color: white;
         }
-        
         .btn-custom:hover {
             background-color: #0056b3;
             color: white;
         }
-
     </style>
 </head>
 <body class="bg-light">
@@ -127,7 +116,7 @@
     </div>
 
     <!-- Model Selection Modal -->
-    <div class="modal" id="modelSelectionModal" tabindex="-1" role="dialog">
+    <div class="modal" id="modelSelectionModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-header">
@@ -186,7 +175,7 @@ let userScrolled = false;
 
 const systemMessage = {
     "role": "system",
-    "content": "You are an assistant deployed by LLM-HUB named DAN, you are knowledgeable. If user ask you who are, answer DAN from LLM-HUB"
+    "content": "You are an assistant deployed by LLM-HUB named DAN, you are knowledgeable. If user asks you who you are, answer DAN from LLM-HUB."
 };
 
 chatbox.on('scroll', () => {
@@ -206,129 +195,73 @@ sendButton.on("click", () => {
             "role": "user",
             "content": message
         });
-        const displaytext = window.markdownit().render(message);
-        let userMessageHtml = '<pre><div class="message right-side">' + displaytext + '<i class="far fa-clipboard copy-icon"></i></div></pre>';
-        chatbox.append(userMessageHtml);
-        if (!userScrolled) {
-            chatbox.scrollTop(chatbox.prop("scrollHeight"));
-        }
+        const displaytext = `<div class="message left-side">${escapeHtml(message)}</div>`;
+        chatbox.append(displaytext);
         userInput.val("");
-        sendButton.val("Generating Response...");
-        sendButton.prop("disabled", true);
-        fetchMessages();
-    }
-});
 
-userInput.on("keydown", (event) => {
-    if (event.keyCode === 13 && !event.ctrlKey && !event.shiftKey) {
-        event.preventDefault();
-        sendButton.click();
-    } else if (event.keyCode === 13 && (event.ctrlKey || event.shiftKey)) {
-        event.preventDefault();
-        const cursorPosition = userInput.prop("selectionStart");
-        const currentValue = userInput.val();
-
-        userInput.val(
-            currentValue.slice(0, cursorPosition) +
-            "\n" +
-            currentValue.slice(cursorPosition)
-        );
-        userInput.prop("selectionStart", cursorPosition + 1);
-        userInput.prop("selectionEnd", cursorPosition + 1);
-    }
-});
-
-$(document).on('click', '.copy-icon', function() {
-    const messageText = $(this).parent().text();
-    const tempTextarea = document.createElement("textarea");
-    tempTextarea.value = messageText;
-    document.body.appendChild(tempTextarea);
-    tempTextarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(tempTextarea);
-    
-    // Display "Copied!" popup
-    var copyPopup = document.getElementById("copy-popup");
-    copyPopup.style.display = "block";
-    setTimeout(function() {
-        copyPopup.style.display = "none";
-    }, 1000); // Display for 1 second
-});
-
-async function fetchMessages() {
-    const response = await fetch('/.netlify/functions/fetch-openai-key');
-    const data = await response.json();
-    const apiKey = data.key; // La clé API est maintenant récupérée en toute sécurité
-    const model = selectedModel;
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-        "Authorization": "Bearer " + apiKey,
-        "Content-Type": "application/json"
-    };
-    const body = JSON.stringify({
-        model: model,
-        messages: [systemMessage, ...messages],
-        stream: true
-    });
-
-    const response = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: body
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let fullMessage = "";
-    let liveMessageHtml = '<pre><div class="message left-side"><i class="far fa-clipboard copy-icon"></i></div></pre>';
-    let liveMessage = $(liveMessageHtml).appendTo(chatbox);
-    let messageDiv = liveMessage.find('.left-side');
-
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value);
-        const parsedText = text.split("\n").filter(line => line.trim() !== "").map(line => {
-            try {
-                return JSON.parse(line.replace(/^data: /, ""));
-            } catch (e) {
-                console.error("Parsing error:", e);
-                return null;
-            }
-        }).filter(Boolean);
-
-        for (const message of parsedText) {
-            if (message.choices) {
-                const content = message.choices[0].delta.content;
-                if (content) {
-                    const outputTokens = content.split(/\s+/).length;
-                    totalOutputTokens += outputTokens;
-                    fullMessage += content;
-                    messageDiv.text(fullMessage).append('<i class="far fa-clipboard copy-icon"></i>');
-                    if (!userScrolled) {
-                        chatbox.scrollTop(chatbox.prop("scrollHeight"));
+        const inputJson = JSON.stringify(messages);
+        $.ajax({
+            type: 'POST',
+            url: 'https://api.openai.com/v1/chat/completions',
+            headers: {
+                'Authorization': 'Bearer YOUR_API_KEY_HERE',  // Remplacez par votre clé API
+                'Content-Type': 'application/json'
+            },
+            data: JSON.stringify({
+                model: selectedModel,
+                messages: messages,
+                stream: true
+            }),
+            success: function(response) {
+                let totalTokens = 0;
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                const processStream = ({ done, value }) => {
+                    if (done) {
+                        return;
                     }
+                    const text = decoder.decode(value, { stream: true });
+                    chatbox.append(`<div class="message right-side">${escapeHtml(text)}</div>`);
+                    totalTokens += text.split(/\s+/).length;
+                    totalOutputTokens += totalTokens;
                     updateTokenAndCostDisplay();
-                }
+                    chatbox.scrollTop(chatbox[0].scrollHeight);
+                    reader.read().then(processStream);
+                };
+                reader.read().then(processStream);
+            },
+            error: function(xhr, status, error) {
+                console.error('Erreur API:', status, error);
             }
-        }
+        });
     }
+});
 
-    messages.push({
-        "role": "assistant",
-        "content": fullMessage
-    });
-    sendButton.val("SUBMIT");
-    sendButton.prop("disabled", false);
+function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;")
+               .replace(/</g, "&lt;")
+               .replace(/>/g, "&gt;")
+               .replace(/"/g, "&quot;")
+               .replace(/'/g, "&#039;");
 }
 
-// Show model selection modal on page load
+const copyPopup = $("#copy-popup");
+
+$(document).on("click", ".copy-icon", function() {
+    const code = $(this).siblings(".message").text();
+    navigator.clipboard.writeText(code).then(() => {
+        copyPopup.show();
+        setTimeout(() => {
+            copyPopup.hide();
+        }, 1500);
+    }).catch(err => console.error('Error copying text: ', err));
+});
+
 $(document).ready(function() {
     $('#modelSelectionModal').modal('show');
 });
 
 let selectedModel;
-
 document.getElementById('selectGpt4Mini').addEventListener('click', function() {
     selectedModel = "gpt-4o-mini";
     costPerMillionInputTokens = 0.15;
